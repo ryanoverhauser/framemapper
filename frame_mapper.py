@@ -2,10 +2,8 @@ import re
 import csv
 import codecs
 
-
 # simple class to represent a single word
 class Word(object):
-
 	text = ""
 	frame = False
 
@@ -13,10 +11,8 @@ class Word(object):
 		self.text = text
 		self.frame = frame
 
-
 # represents a matched phrase between two word arrays
 class Phrase(object):
-
 	sPos = 0
 	aPos = 0
 	length = 0
@@ -26,12 +22,10 @@ class Phrase(object):
 		self.aPos = aPos
 		self.length = length
 
-
 # the main class to handle mapping the frames between a source and analysis file
 class FrameMapper(object):
-
-	sFile = ''
-	aFile = ''
+	sFile = ""
+	aFile = ""
 	sWords = 0
 	aWords = 0
 	phraseLength = 3
@@ -41,7 +35,6 @@ class FrameMapper(object):
 		self.aFile = aFile
 		self.sWords = self.parse_script_file()
 		self.aWords = self.parse_analysis_file()
-
 
 	# Parse script text into word array
 	def parse_script_file(self):
@@ -54,7 +47,6 @@ class FrameMapper(object):
 				wordArray.append(Word(w, 0))
 		return wordArray
 
-
 	# Parse tab-separated-value analysis file into word array
 	def parse_analysis_file(self):
 		wordArray = []
@@ -64,12 +56,9 @@ class FrameMapper(object):
 					wordArray.append(Word(line[2].upper(),int(line[0])))
 		return wordArray
 
-
 	# Find all matched phrases
 	def map_phrases(self):
-
 		minLength = self.phraseLength
-
 		sW = []
 		for w in (self.sWords):
 			sW.append(w.text)
@@ -90,13 +79,11 @@ class FrameMapper(object):
 		self.assign_mapped_positions(phrases)
 		self.approximate_unmapped_positions()
 
-
 	# Assign frame positions based on matched phrases
 	def assign_mapped_positions(self, phrases):
 		for p in phrases:
 			for i in range(0,p.length):
 				self.sWords[p.sPos + i].frame = self.aWords[p.aPos + i].frame
-
 
 	# Assign approximate frame position for unmapped words
 	def approximate_unmapped_positions(self):
@@ -115,7 +102,6 @@ class FrameMapper(object):
 		for space in spaces:
 			self.calculateAverages(space)
 
-
 	# Calculate average spacing between group of words and assign frame positions
 	def calculateAverages(self, s):
 		prev = s[0] - 1
@@ -126,26 +112,20 @@ class FrameMapper(object):
 		for i in range(s[0], (s[0] + s[1])):
 			self.sWords[i].frame = prevFrame + ((i - s[0] + 1) * avgLength)
 
-
 	# Search for longest phrase in target array given starting position in source array
 	@staticmethod
 	def find_phrase(sW, aW, pos, minLength):
-
 		# find the index of each matching start word
 		indices = [i for i, x in enumerate(aW) if x == sW[pos]]
-
 		if not indices:
 			return False # Word not found
-
 		for i in indices:
 			count = 0
 			while ((i + count) < len(aW)) and (sW[pos + count] == aW[i + count]):
 				count += 1
 			if count >= minLength:
 				return Phrase(pos, i, count)
-
 		return False # No phrase found
-
 
 	# convert left and right single and double quotation marks to ascii
 	@staticmethod
