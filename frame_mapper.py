@@ -100,10 +100,10 @@ class FrameMapper(object):
 			else:
 				i += 1
 		for space in spaces:
-			self.calculateAverages(space)
+			self.calculate_averages(space)
 
 	# Calculate average spacing between group of words and assign frame positions
-	def calculateAverages(self, s):
+	def calculate_averages(self, s):
 		prev = s[0] - 1
 		next = s[0] + s[1]
 		prevFrame = (self.sWords[prev].frame) if (prev >= 1) else 0
