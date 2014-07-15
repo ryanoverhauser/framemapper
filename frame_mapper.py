@@ -34,6 +34,7 @@ class FrameMapper(object):
 	aFile = ''
 	sWords = 0
 	aWords = 0
+	phraseLength = 3
 
 	def __init__(self, sFile, aFile):
 		self.sFile = sFile
@@ -65,7 +66,9 @@ class FrameMapper(object):
 
 
 	# Find all matched phrases
-	def map_phrases(self, minLength):
+	def map_phrases(self):
+
+		minLength = self.phraseLength
 
 		sW = []
 		for w in (self.sWords):
