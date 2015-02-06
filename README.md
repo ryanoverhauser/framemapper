@@ -1,6 +1,6 @@
 FrameMapper
 ===========
-This script approximates the frame location of words in a text file (script) by comparing them against an Adobe Premiere Speech Analysis tab-seperated value file.
+Approximates the frame location of words in a text file (script) by comparing them against an Adobe Premiere Speech Analysis tab-seperated value file. A .srt output can be generated based on line breaks in the input transcript.
 
 ###Usage
 
@@ -14,9 +14,6 @@ analysis = 'data/ANALYSIS_gp3267.txt'
 # Initialize the file mapper, passing file paths as arguments
 fm = FrameMapper(script, analysis)
 
-# Run the frame mapper
-fm.map_phrases()
-
-#Get the processed script word object array
-words = fm.sWords
+# Get srt output for the script
+srt = fm.build_srt()
 ```

@@ -1,15 +1,18 @@
 import re
 import csv
 import codecs
+from datetime import datetime, timedelta
 
 # simple class to represent a single word
 class Word(object):
 	text = ""
 	frame = False
+	duration = False
 
-	def __init__(self, text, frame):
+	def __init__(self, text, frame, duration):
 		self.text = text
 		self.frame = frame
+		self.duration = duration
 
 # represents a matched phrase between two word arrays
 class Phrase(object):
@@ -22,39 +25,53 @@ class Phrase(object):
 		self.aPos = aPos
 		self.length = length
 
+# represents a single subtitle line
+class Title(object):
+	text = ""
+	start = False
+	end = False
+
+	def __init__(self, text):
+		self.text = text
+
 # the main class to handle mapping the frames between a source and analysis file
 class FrameMapper(object):
 	sFile = ""
 	aFile = ""
-	sWords = 0
-	aWords = 0
+	sWords = []
+	aWords = []
+	titles = []
 	phraseLength = 3
+	duration = 0
 
 	def __init__(self, sFile, aFile):
 		self.sFile = sFile
 		self.aFile = aFile
-		self.sWords = self.parse_script_file()
-		self.aWords = self.parse_analysis_file()
+		self.parse_script_file()
+		self.parse_analysis_file()
+		self.map_phrases()
+		self.map_titles()
 
 	# Parse script text into word array
 	def parse_script_file(self):
-		wordArray = []
 		with codecs.open(self.sFile, encoding='utf-8') as script:
 			s = script.read().upper() # read the file to a string
-			s = self.replace_unicode_punctuation(s)
 			words = re.sub("[^\w']", " ",  s).split() # convert non-alphanumeric to " " and then split
 			for w in words:
-				wordArray.append(Word(w, 0))
-		return wordArray
+				self.sWords.append(Word(w, 0, 0))
+		with open(self.sFile) as f:
+			lines = f.readlines()
+		for l in lines:
+			if l:
+				self.titles.append(Title(l.strip()))
 
 	# Parse tab-separated-value analysis file into word array
 	def parse_analysis_file(self):
-		wordArray = []
 		with open(self.aFile) as tsv:
 			for line in csv.reader(tsv, delimiter="\t"):
+				self.duration = int(line[0]) # the last line will contain the duration for the whole clip
 				if line[2][0] != '<': # ignore silence and other tags
-					wordArray.append(Word(line[2].upper(),int(line[0])))
-		return wordArray
+					self.aWords.append(Word( line[2].upper(), int(line[0]), int(line[1]) ))
 
 	# Find all matched phrases
 	def map_phrases(self):
@@ -84,6 +101,7 @@ class FrameMapper(object):
 		for p in phrases:
 			for i in range(0,p.length):
 				self.sWords[p.sPos + i].frame = self.aWords[p.aPos + i].frame
+				self.sWords[p.sPos + i].duration = self.aWords[p.aPos + i].duration
 
 	# Assign approximate frame position for unmapped words
 	def approximate_unmapped_positions(self):
@@ -110,7 +128,81 @@ class FrameMapper(object):
 		nextFrame = (self.sWords[next].frame) if (next < len(self.sWords)) else 0
 		avgLength = (nextFrame - prevFrame) / (s[1] + 1) if (nextFrame > prevFrame) else 0
 		for i in range(s[0], (s[0] + s[1])):
-			self.sWords[i].frame = prevFrame + ((i - s[0] + 1) * avgLength)
+			self.sWords[i].frame = prevFrame + round((i - s[0] + 1) * avgLength)
+			self.sWords[i].duration = round(avgLength)
+
+	# Calculate subtitle start and end positions
+	def map_titles(self):
+
+		for t in self.titles:
+			pos = self.find_title(t)
+			t.start = pos[0]
+			t.end = pos[1]
+
+		i = 0
+		while i < len(self.titles):
+			if i < (len(self.titles) - 1):
+				if self.titles[i].end >= self.titles[i+1].start:
+					self.titles[i].end = self.titles[i+1].start - 1
+				else:
+					sec = (self.titles[i].end - self.titles[i].start)
+					target = round(len(self.titles[i].text) / 15 * 1000)
+					self.titles[i].end = self.titles[i+1].start - 1 if (self.titles[i].start + target) >= self.titles[i+1].start else self.titles[i].start + target
+			else:
+				sec = (self.titles[i].end - self.titles[i].start)
+				target = round(len(self.titles[i].text) / 15 * 1000)
+				if (sec < target):
+					self.titles[i].end = self.duration if (self.titles[i].start + target) > self.duration else self.titles[i].start + target
+
+			i += 1
+
+	# Find a subtitle in the script
+	def find_title(self, title):
+
+		phrase = title.text.upper()
+		phrase = re.sub("[^\w']", " ",  phrase).split()
+
+		bare = []
+		for w in self.sWords:
+			bare.append(w.text)
+
+		i = 0
+		while i < len(bare):
+			if bare[i] == phrase[0]:
+				endPos = i + len(phrase)
+				if (bare[i:endPos] == phrase):
+					start = self.sWords[i].frame
+					end = self.sWords[endPos - 1].frame + self.sWords[endPos - 1].duration
+			i += 1
+
+		return [start, end]
+
+	# Returns an srt for subtitles
+	def build_srt(self):
+
+		i = 0
+		output = ''
+		while i < len(self.titles):
+			output += (str(i+1) + '\n' + self.format_timecode(self.titles[i].start) + ' --> ' + self.format_timecode(self.titles[i].end) + '\n' + self.titles[i].text) + '\n\n'
+			i += 1
+
+		# print(output)
+		return output
+
+	# Formats millisecond position for srt
+	@staticmethod
+	def format_timecode(msec):
+
+		r = str(msec)[-3:]
+		t = str(msec)[:-3]
+
+		if not t:
+			t = '0'
+
+		sec = timedelta(seconds=int(t))
+		d = datetime(1,1,1) + sec
+
+		return d.strftime("%H:%M:%S") + ',' + r
 
 	# Search for longest phrase in target array given starting position in source array
 	@staticmethod
@@ -126,10 +218,3 @@ class FrameMapper(object):
 			if count >= minLength:
 				return Phrase(pos, i, count)
 		return False # No phrase found
-
-	# convert left and right single and double quotation marks to ascii
-	@staticmethod
-	def replace_unicode_punctuation(string):
-		uString = unicode(string)
-		punctuation = { 0x2018:0x27, 0x2019:0x27, 0x201C:0x22, 0x201D:0x22 }
-		return uString.translate(punctuation).encode('ascii', 'ignore')
